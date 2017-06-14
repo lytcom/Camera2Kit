@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Camera2Kit</string>
+    <string name="take_picture">Take picture</string>
+    <string name="start_record_video">Start record</string>
+    <string name="stop_record_video">Stop record</string>
+    <string name="request_permission">This sample needs permission for camera and audio recording.</string>
+    <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+</resources>

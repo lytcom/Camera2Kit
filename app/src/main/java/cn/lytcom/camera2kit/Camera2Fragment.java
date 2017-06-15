@@ -145,37 +145,6 @@ public class Camera2Fragment extends Fragment
     private static final int MAX_PREVIEW_HEIGHT = 1080;
 
     /**
-     * {@link TextureView.SurfaceTextureListener} handles several lifecycle events on a
-     * {@link TextureView}.
-     */
-    private final TextureView.SurfaceTextureListener mSurfaceTextureListener
-        = new TextureView.SurfaceTextureListener() {
-
-        @Override
-        public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
-            openCamera(width, height);
-        }
-
-        @Override
-        public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
-            configureTransform(width, height);
-        }
-
-        @Override
-        public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
-            if (mTextureView != null) {
-                mTextureView.setSurfaceTextureListener(null);
-            }
-            return true;
-        }
-
-        @Override
-        public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-        }
-
-    };
-
-    /**
      * ID of the current {@link CameraDevice}.
      */
     private String mCameraId;
@@ -195,97 +164,6 @@ public class Camera2Fragment extends Fragment
      */
     private CameraDevice mCameraDevice;
 
-    /**
-     * The {@link Size} of camera preview.
-     */
-    private Size mPreviewSize;
-
-    /**
-     * The {@link android.util.Size} of video recording.
-     */
-    private Size mVideoSize;
-
-    private String mNextVideoAbsolutePath;
-
-    /**
-     * MediaRecorder
-     */
-    private MediaRecorder mMediaRecorder;
-
-    /**
-     * Whether the app is recording video now
-     */
-    private boolean mIsRecordingVideo;
-
-    private Button recordButton;
-
-    /**
-     * {@link CameraDevice.StateCallback} is called when {@link CameraDevice} changes its state.
-     */
-    private final CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
-
-        @Override
-        public void onOpened(@NonNull CameraDevice cameraDevice) {
-            // This method is called when the camera is opened.  We start camera preview here.
-            mCameraOpenCloseLock.release();
-            mCameraDevice = cameraDevice;
-            createCameraPreviewSession();
-        }
-
-        @Override
-        public void onDisconnected(@NonNull CameraDevice cameraDevice) {
-            mCameraOpenCloseLock.release();
-            cameraDevice.close();
-            mCameraDevice = null;
-        }
-
-        @Override
-        public void onError(@NonNull CameraDevice cameraDevice, int error) {
-            mCameraOpenCloseLock.release();
-            cameraDevice.close();
-            mCameraDevice = null;
-            Activity activity = getActivity();
-            if (null != activity) {
-                activity.finish();
-            }
-        }
-
-    };
-
-    /**
-     * An additional thread for running tasks that shouldn't block the UI.
-     */
-    private HandlerThread mBackgroundThread;
-
-    /**
-     * A {@link Handler} for running tasks in the background.
-     */
-    private Handler mBackgroundHandler;
-
-    /**
-     * An {@link ImageReader} that handles still image capture.
-     */
-    private ImageReader mImageReader;
-
-    /**
-     * This is the output file for our picture.
-     */
-    private File mPictureFile;
-
-    /**
-     * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
-     * still image is ready to be saved.
-     */
-    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
-        = new ImageReader.OnImageAvailableListener() {
-
-        @Override
-        public void onImageAvailable(ImageReader reader) {
-            mPictureFile = getPictureFile(getActivity());
-            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mPictureFile));
-        }
-
-    };
 
     /**
      * {@link CaptureRequest.Builder} for the camera preview
@@ -320,9 +198,150 @@ public class Camera2Fragment extends Fragment
     private int mSensorOrientation;
 
     /**
+     * The {@link Size} of camera preview.
+     */
+    private Size mPreviewSize;
+
+    /**
+     * The {@link Size} of video recording.
+     */
+    private Size mVideoSize;
+
+    /**
+     * MediaRecorder
+     */
+    private MediaRecorder mMediaRecorder;
+
+    /**
+     * Whether the app is recording video now
+     */
+    private boolean mIsRecordingVideo;
+
+    /**
+     * An additional thread for running tasks that shouldn't block the UI.
+     */
+    private HandlerThread mBackgroundThread;
+
+    /**
+     * A {@link Handler} for running tasks in the background.
+     */
+    private Handler mBackgroundHandler;
+
+    /**
+     * An {@link ImageReader} that handles still image capture.
+     */
+    private ImageReader mImageReader;
+
+    /**
+     * The output file path of video recording.
+     */
+    private String mNextVideoAbsolutePath;
+
+    /**
+     * The output file path of take picture.
+     */
+    private String mNextPictureAbsolutePath;
+
+    /**
+     * The button of record video
+     */
+    private Button recordButton;
+
+    /**
+     * The button of take picture
+     */
+    private Button pictureButton;
+
+
+    /**
+     * {@link TextureView.SurfaceTextureListener} handles several lifecycle events on a
+     * {@link TextureView}.
+     */
+    private final TextureView.SurfaceTextureListener mSurfaceTextureListener
+        = new TextureView.SurfaceTextureListener() {
+
+        @Override
+        public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
+            openCamera(width, height);
+        }
+
+        @Override
+        public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
+            configureTransform(width, height);
+        }
+
+        @Override
+        public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
+            if (mTextureView != null) {
+                mTextureView.setSurfaceTextureListener(null);
+            }
+            return true;
+        }
+
+        @Override
+        public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+        }
+
+    };
+
+
+    /**
+     * {@link CameraDevice.StateCallback} is called when {@link CameraDevice} changes its state.
+     */
+    private final CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
+
+        @Override
+        public void onOpened(@NonNull CameraDevice cameraDevice) {
+            // This method is called when the camera is opened.  We start camera preview here.
+            mCameraOpenCloseLock.release();
+            mCameraDevice = cameraDevice;
+            createCameraPreviewSession();
+        }
+
+        @Override
+        public void onDisconnected(@NonNull CameraDevice cameraDevice) {
+            mCameraOpenCloseLock.release();
+            cameraDevice.close();
+            mCameraDevice = null;
+        }
+
+        @Override
+        public void onError(@NonNull CameraDevice cameraDevice, int error) {
+            mCameraOpenCloseLock.release();
+            cameraDevice.close();
+            mCameraDevice = null;
+            Activity activity = getActivity();
+            if (null != activity) {
+                showToast("Camera is error: " + error);
+                activity.finish();
+            }
+        }
+
+    };
+
+
+    /**
+     * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
+     * still image is ready to be saved.
+     */
+    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
+        = new ImageReader.OnImageAvailableListener() {
+
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+            mNextPictureAbsolutePath = getPictureFilePath(getActivity());
+            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), new File(mNextPictureAbsolutePath)));
+            showToast("Picture saved: " + mNextPictureAbsolutePath);
+            Log.i(TAG, "Picture saved: " + mNextPictureAbsolutePath);
+        }
+
+    };
+
+
+    /**
      * A {@link CameraCaptureSession.CaptureCallback} that handles events related to JPEG capture.
      */
-    private CameraCaptureSession.CaptureCallback mCaptureCallback
+    private final CameraCaptureSession.CaptureCallback mCaptureCallback
         = new CameraCaptureSession.CaptureCallback() {
 
         private void process(CaptureResult result) {
@@ -482,9 +501,10 @@ public class Camera2Fragment extends Fragment
 
     @Override
     public void onViewCreated(final View view, Bundle savedInstanceState) {
-        view.findViewById(R.id.picture).setOnClickListener(this);
         recordButton = (Button) view.findViewById(R.id.video);
         recordButton.setOnClickListener(this);
+        pictureButton = (Button) view.findViewById(R.id.picture);
+        pictureButton.setOnClickListener(this);
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
     }
 
@@ -567,12 +587,12 @@ public class Camera2Fragment extends Fragment
     }
 
     /**
-     * Sets up member variables related to camera.
+     * Setup member variables related to camera.
      *
      * @param width  The width of available size for camera preview
      * @param height The height of available size for camera preview
      */
-    private void setUpCameraOutputs(int width, int height) {
+    private void setupCameraOutputs(int width, int height) {
         Activity activity = getActivity();
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
@@ -646,7 +666,7 @@ public class Camera2Fragment extends Fragment
                     maxPreviewHeight = MAX_PREVIEW_HEIGHT;
                 }
 
-                // Danger, W.R.! Attempting to use too large a preview size could  exceed the camera
+                // Danger, W.R.! Attempting to use too large a preview size could exceed the camera
                 // bus' bandwidth limitation, resulting in gorgeous previews but the storage of
                 // garbage capture data.
                 mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class),
@@ -670,6 +690,7 @@ public class Camera2Fragment extends Fragment
                 mFlashSupported = available == null ? false : available;
 
                 mCameraId = cameraId;
+                Log.i(TAG, "CameraId: " + mCameraId + " ,isFlashSupported: " + mFlashSupported);
                 return;
             }
         } catch (CameraAccessException e) {
@@ -691,7 +712,7 @@ public class Camera2Fragment extends Fragment
             requestCameraPermission();
             return;
         }
-        setUpCameraOutputs(width, height);
+        setupCameraOutputs(width, height);
         configureTransform(width, height);
         Activity activity = getActivity();
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
@@ -775,8 +796,7 @@ public class Camera2Fragment extends Fragment
             Surface surface = new Surface(texture);
 
             // We set up a CaptureRequest.Builder with the output Surface.
-            mPreviewRequestBuilder
-                = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(surface);
 
             // Here, we create a CameraCaptureSession for camera preview.
@@ -811,10 +831,9 @@ public class Camera2Fragment extends Fragment
                     @Override
                     public void onConfigureFailed(
                         @NonNull CameraCaptureSession cameraCaptureSession) {
-                        showToast("Failed");
+                        showToast("Create preview configure failed");
                     }
-                }, null
-            );
+                }, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -823,7 +842,7 @@ public class Camera2Fragment extends Fragment
     /**
      * Configures the necessary {@link Matrix} transformation to `mTextureView`.
      * This method should be called after the camera preview size is determined in
-     * setUpCameraOutputs and also the size of `mTextureView` is fixed.
+     * setupCameraOutputs and also the size of `mTextureView` is fixed.
      *
      * @param viewWidth  The width of `mTextureView`
      * @param viewHeight The height of `mTextureView`
@@ -870,8 +889,7 @@ public class Camera2Fragment extends Fragment
                 CameraMetadata.CONTROL_AF_TRIGGER_START);
             // Tell #mCaptureCallback to wait for the lock.
             mState = STATE_WAITING_LOCK;
-            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
-                mBackgroundHandler);
+            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -888,8 +906,7 @@ public class Camera2Fragment extends Fragment
                 CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
             // Tell #mCaptureCallback to wait for the precapture sequence to be set.
             mState = STATE_WAITING_PRECAPTURE;
-            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
-                mBackgroundHandler);
+            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -926,14 +943,12 @@ public class Camera2Fragment extends Fragment
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
-                    showToast("Saved: " + mPictureFile);
-                    Log.d(TAG, mPictureFile.toString());
                     unlockFocus();
                 }
             };
 
             mPreviewSession.stopRepeating();
-            mPreviewSession.capture(captureBuilder.build(), CaptureCallback, null);
+            mPreviewSession.capture(captureBuilder.build(), CaptureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -984,7 +999,9 @@ public class Camera2Fragment extends Fragment
             case R.id.video: {
                 if (mIsRecordingVideo) {
                     stopRecordingVideo();
+                    pictureButton.setEnabled(true);
                 } else {
+                    pictureButton.setEnabled(false);
                     startRecordingVideo();
                 }
                 break;
@@ -1005,11 +1022,13 @@ public class Camera2Fragment extends Fragment
             + System.currentTimeMillis() + ".mp4";
     }
 
-    private File getPictureFile(Context context) {
-        return new File(context.getExternalFilesDir(null), "/" + System.currentTimeMillis() + ".jpg");
+    private String getPictureFilePath(Context context) {
+        final File dir = context.getExternalFilesDir(null);
+        return (dir == null ? "" : (dir.getAbsolutePath() + "/"))
+            + System.currentTimeMillis() + ".jpg";
     }
 
-    private void setUpMediaRecorder() throws IOException {
+    private void setupMediaRecorder() throws IOException {
         final Activity activity = getActivity();
         if (null == activity) {
             return;
@@ -1037,12 +1056,15 @@ public class Camera2Fragment extends Fragment
     }
 
 
+    /**
+     * Start recording video
+     */
     private void startRecordingVideo() {
         if (null == mCameraDevice || !mTextureView.isAvailable() || null == mPreviewSize) {
             return;
         }
         try {
-            setUpMediaRecorder();
+            setupMediaRecorder();
             SurfaceTexture texture = mTextureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -1076,29 +1098,26 @@ public class Camera2Fragment extends Fragment
                         // Finally, we start displaying the camera preview.
                         mPreviewRequest = mPreviewRequestBuilder.build();
                         mPreviewSession.setRepeatingRequest(mPreviewRequest, null, mBackgroundHandler);
+                        getActivity().runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                // UI
+                                mIsRecordingVideo = true;
+
+                                recordButton.setText(R.string.stop_record_video);
+
+                                // Start recording
+                                mMediaRecorder.start();
+                            }
+                        });
                     } catch (CameraAccessException e) {
                         e.printStackTrace();
                     }
-                    getActivity().runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            // UI
-                            mIsRecordingVideo = true;
-
-                            recordButton.setText(R.string.stop_record_video);
-
-                            // Start recording
-                            mMediaRecorder.start();
-                        }
-                    });
                 }
 
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    Activity activity = getActivity();
-                    if (null != activity) {
-                        Toast.makeText(activity, "Failed", Toast.LENGTH_SHORT).show();
-                    }
+                    showToast("Start recording video configure failed");
                 }
             }, mBackgroundHandler);
         } catch (CameraAccessException | IOException e) {
@@ -1107,21 +1126,25 @@ public class Camera2Fragment extends Fragment
 
     }
 
+    /**
+     * Stop recording video
+     */
     private void stopRecordingVideo() {
-        // UI
-        mIsRecordingVideo = false;
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // UI
+                mIsRecordingVideo = false;
 
-        recordButton.setText(R.string.start_record_video);
+                recordButton.setText(R.string.start_record_video);
 
-        Activity activity = getActivity();
-        if (null != activity) {
-            Toast.makeText(activity, "Video saved: " + mNextVideoAbsolutePath,
-                Toast.LENGTH_SHORT).show();
-            Log.d(TAG, "Video saved: " + mNextVideoAbsolutePath);
-        }
+                showToast("Video saved: " + mNextVideoAbsolutePath);
+                Log.i(TAG, "Video saved: " + mNextVideoAbsolutePath);
 
-        closeCamera();
-        openCamera(mTextureView.getWidth(), mTextureView.getHeight());
+                closeCamera();
+                openCamera(mTextureView.getWidth(), mTextureView.getHeight());
+            }
+        });
     }
 
 
@@ -1139,7 +1162,7 @@ public class Camera2Fragment extends Fragment
          */
         private final File mFile;
 
-        public ImageSaver(Image image, File file) {
+        ImageSaver(Image image, File file) {
             mImage = image;
             mFile = file;
         }

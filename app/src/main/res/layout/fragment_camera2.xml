@@ -25,14 +25,16 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:text="take picture"/>
+            android:text="@string/take_picture"
+            android:textAllCaps="false"/>
 
         <Button
             android:id="@+id/video"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:text="start video"/>
+            android:text="@string/start_record_video"
+            android:textAllCaps="false"/>
 
     </LinearLayout>
 

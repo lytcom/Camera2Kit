@@ -1,6 +1,6 @@
 # Camera2Kit
 A android sample use camera2 to take picture and record video in one fragment,
-Fix some issues and optimize code over the googlesamples.
+Fix some issues and optimize code over the google samples.
 
 
 

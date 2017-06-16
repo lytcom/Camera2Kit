@@ -47,6 +47,7 @@ import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.v13.app.FragmentCompat;
 import android.support.v4.app.ActivityCompat;
@@ -144,6 +145,13 @@ public class Camera2Fragment extends Fragment
      */
     private static final int MAX_PREVIEW_HEIGHT = 1080;
 
+
+    private static final int MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT = 100;
+
+    private static final long AUTO_FOCUS_TIMEOUT_MS = 1000;  //1s timeout, Under normal circumstances need to a few hundred milliseconds
+
+    private static final long OPEN_CAMERA_TIMEOUT_MS = 2500;  //2.5s
+
     /**
      * ID of the current {@link CameraDevice}.
      */
@@ -175,6 +183,9 @@ public class Camera2Fragment extends Fragment
      */
     private CaptureRequest mPreviewRequest;
 
+
+    private CameraCharacteristics mCameraCharacteristics;
+
     /**
      * The current state of camera state for taking pictures.
      *
@@ -191,6 +202,12 @@ public class Camera2Fragment extends Fragment
      * Whether the current camera device supports Flash or not.
      */
     private boolean mFlashSupported;
+
+    /**
+     * Whether the current camera auto focus when take picture
+     */
+    private boolean mAutoFocus = true;
+
 
     /**
      * Orientation of the camera sensor
@@ -345,6 +362,7 @@ public class Camera2Fragment extends Fragment
         = new CameraCaptureSession.CaptureCallback() {
 
         private void process(CaptureResult result) {
+            //  Log.i(TAG, "CaptureCallback mState: " + mState);
             switch (mState) {
                 case STATE_PREVIEW: {
                     // We have nothing to do when the camera preview is working normally.
@@ -352,7 +370,9 @@ public class Camera2Fragment extends Fragment
                 }
                 case STATE_WAITING_LOCK: {
                     Integer afState = result.get(CaptureResult.CONTROL_AF_STATE);
+                    Log.i(TAG, "STATE_WAITING_LOCK afState: " + afState);
                     if (afState == null) {
+                        mState = STATE_PICTURE_TAKEN;
                         captureStillPicture();
                     } else if (CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == afState ||
                         CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == afState) {
@@ -597,16 +617,16 @@ public class Camera2Fragment extends Fragment
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String cameraId : manager.getCameraIdList()) {
-                CameraCharacteristics characteristics
+                mCameraCharacteristics
                     = manager.getCameraCharacteristics(cameraId);
 
                 // We don't use a front facing camera in this sample.
-                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                Integer facing = mCameraCharacteristics.get(CameraCharacteristics.LENS_FACING);
                 if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
                     continue;
                 }
 
-                StreamConfigurationMap map = characteristics.get(
+                StreamConfigurationMap map = mCameraCharacteristics.get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 if (map == null) {
                     continue;
@@ -625,7 +645,7 @@ public class Camera2Fragment extends Fragment
                 // coordinate.
                 int displayRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
                 //noinspection ConstantConditions
-                mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+                mSensorOrientation = mCameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
                 boolean swappedDimensions = false;
                 switch (displayRotation) {
                     case Surface.ROTATION_0:
@@ -686,7 +706,7 @@ public class Camera2Fragment extends Fragment
                 }
 
                 // Check if the flash is supported.
-                Boolean available = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                Boolean available = mCameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
                 mFlashSupported = available == null ? false : available;
 
                 mCameraId = cameraId;
@@ -717,7 +737,7 @@ public class Camera2Fragment extends Fragment
         Activity activity = getActivity();
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
-            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
+            if (!mCameraOpenCloseLock.tryAcquire(OPEN_CAMERA_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
             mMediaRecorder = new MediaRecorder();
@@ -764,7 +784,20 @@ public class Camera2Fragment extends Fragment
     private void startBackgroundThread() {
         mBackgroundThread = new HandlerThread("CameraBackground");
         mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper()) {
+            @Override
+            public void handleMessage(Message msg) {
+                super.handleMessage(msg);
+                switch (msg.what) {
+                    case MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT:
+                        captureStillPicture();
+                        break;
+                    default:
+                        break;
+                }
+
+            }
+        };
     }
 
     /**
@@ -814,8 +847,9 @@ public class Camera2Fragment extends Fragment
                         mPreviewSession = cameraCaptureSession;
                         try {
                             // Auto focus should be continuous for camera preview.
-                            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+//                            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+//                                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                            updateAutoFocus();
                             // Flash is automatically enabled when necessary.
                             setAutoFlash(mPreviewRequestBuilder);
 
@@ -872,11 +906,79 @@ public class Camera2Fragment extends Fragment
         mTextureView.setTransform(matrix);
     }
 
+    public void setAutoFocus(boolean autoFocus) {
+        if (mAutoFocus == autoFocus) {
+            return;
+        }
+        mAutoFocus = autoFocus;
+        if (mPreviewRequestBuilder != null) {
+            updateAutoFocus();
+            if (mPreviewSession != null) {
+                try {
+                    mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
+                        mCaptureCallback, mBackgroundHandler);
+                } catch (CameraAccessException e) {
+                    mAutoFocus = !mAutoFocus; // Revert
+                }
+            }
+        }
+    }
+
+    public boolean getAutoFocus() {
+        return mAutoFocus;
+    }
+
+    /**
+     * Updates the internal state of auto-focus to {@link #mAutoFocus}.
+     */
+    private void updateAutoFocus() {
+        if (mAutoFocus) {
+            int[] modes = mCameraCharacteristics.get(
+                CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
+            // Auto focus is not supported
+            if (modes == null || modes.length == 0 ||
+                (modes.length == 1 && modes[0] == CameraCharacteristics.CONTROL_AF_MODE_OFF)) {
+                mAutoFocus = false;
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_OFF);
+            } else {
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            }
+        } else {
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                CaptureRequest.CONTROL_AF_MODE_OFF);
+        }
+    }
+
     /**
      * Initiate a still image capture.
      */
     private void takePicture() {
-        lockFocus();
+        if (mAutoFocus) {
+            capturePictureWhenFocusTimeout(); //Sometimes, camera do not focus in some devices.
+            lockFocus();
+        } else {
+            captureStillPicture();
+        }
+    }
+
+    /**
+     * Capture picture when auto focus timeout
+     */
+    private void capturePictureWhenFocusTimeout() {
+        if (mBackgroundHandler != null) {
+            mBackgroundHandler.sendEmptyMessageDelayed(MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT, AUTO_FOCUS_TIMEOUT_MS);
+        }
+    }
+
+    /**
+     * Remove capture message, because auto focus work correctly.
+     */
+    private void removeCaptureMessage() {
+        if (mBackgroundHandler != null) {
+            mBackgroundHandler.removeMessages(MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT);
+        }
     }
 
     /**
@@ -890,6 +992,31 @@ public class Camera2Fragment extends Fragment
             // Tell #mCaptureCallback to wait for the lock.
             mState = STATE_WAITING_LOCK;
             mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Unlock the focus. This method should be called when still image capture sequence is
+     * finished.
+     */
+    private void unlockFocus() {
+        try {
+            // Reset the auto-focus trigger
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+                CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
+            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
+                mBackgroundHandler);
+
+            updateAutoFocus();
+            setAutoFlash(mPreviewRequestBuilder);
+            // After this, the camera will go back to the normal state of preview.
+            mState = STATE_PREVIEW;
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+                CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
+            mPreviewSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback,
+                mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -918,6 +1045,7 @@ public class Camera2Fragment extends Fragment
      */
     private void captureStillPicture() {
         try {
+            removeCaptureMessage();
             final Activity activity = getActivity();
             if (null == activity || null == mCameraDevice) {
                 return;
@@ -928,8 +1056,9 @@ public class Camera2Fragment extends Fragment
             captureBuilder.addTarget(mImageReader.getSurface());
 
             // Use the same AE and AF modes as the preview.
-            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+//            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+//                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            updateAutoFocus();
             setAutoFlash(captureBuilder);
 
             // Orientation
@@ -966,27 +1095,6 @@ public class Camera2Fragment extends Fragment
         // For devices with orientation of 90, we simply return our mapping from DEFAULT_ORIENTATIONS.
         // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
         return (DEFAULT_ORIENTATIONS.get(rotation) + mSensorOrientation + 270) % 360;
-    }
-
-    /**
-     * Unlock the focus. This method should be called when still image capture sequence is
-     * finished.
-     */
-    private void unlockFocus() {
-        try {
-            // Reset the auto-focus trigger
-            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
-                CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
-            setAutoFlash(mPreviewRequestBuilder);
-            mPreviewSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
-                mBackgroundHandler);
-            // After this, the camera will go back to the normal state of preview.
-            mState = STATE_PREVIEW;
-            mPreviewSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback,
-                mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
     }
 
     @Override

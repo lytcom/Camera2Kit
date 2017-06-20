@@ -17,6 +17,10 @@
 package cn.lytcom.camera2kit;
 
 import android.Manifest;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -29,6 +33,7 @@ import android.content.res.Configuration;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
@@ -40,6 +45,7 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.params.MeteringRectangle;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
@@ -54,7 +60,9 @@ import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
+import android.view.GestureDetector;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
@@ -148,9 +156,12 @@ public class Camera2Fragment extends Fragment
 
     private static final int MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT = 100;
 
-    private static final long AUTO_FOCUS_TIMEOUT_MS = 1000;  //1s timeout, Under normal circumstances need to a few hundred milliseconds
 
-    private static final long OPEN_CAMERA_TIMEOUT_MS = 2500;  //2.5s
+    private Rect mCropRegion;
+
+    private MeteringRectangle[] mAFRegions = AutoFocusHelper.getZeroWeightRegion();
+
+    private MeteringRectangle[] mAERegions = AutoFocusHelper.getZeroWeightRegion();
 
     /**
      * ID of the current {@link CameraDevice}.
@@ -161,6 +172,16 @@ public class Camera2Fragment extends Fragment
      * An {@link AutoFitTextureView} for camera preview.
      */
     private AutoFitTextureView mTextureView;
+
+    /**
+     * The preview for manual tap to focus
+     */
+    private PreviewOverlay mPreviewOverlay;
+
+    /**
+     * The view for manual tap to focus
+     */
+    private FocusView mFocusView;
 
     /**
      * A {@link CameraCaptureSession } for camera preview.
@@ -208,7 +229,6 @@ public class Camera2Fragment extends Fragment
      */
     private boolean mAutoFocus = true;
 
-
     /**
      * Orientation of the camera sensor
      */
@@ -230,9 +250,14 @@ public class Camera2Fragment extends Fragment
     private MediaRecorder mMediaRecorder;
 
     /**
-     * Whether the app is recording video now
+     * Whether the camera is recording video now
      */
     private boolean mIsRecordingVideo;
+
+    /**
+     * Whether the camera is manual focusing now
+     */
+    private boolean mIsManualFocusing;
 
     /**
      * An additional thread for running tasks that shouldn't block the UI.
@@ -526,6 +551,16 @@ public class Camera2Fragment extends Fragment
         pictureButton = (Button) view.findViewById(R.id.picture);
         pictureButton.setOnClickListener(this);
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
+        mFocusView = (FocusView) view.findViewById(R.id.focusView);
+        mPreviewOverlay = (PreviewOverlay) view.findViewById(R.id.preview_overlay);
+        mPreviewOverlay.setGestureListener(new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onSingleTapUp(MotionEvent e) {
+                setFocusViewWidthAnimation((int) e.getX(), (int) e.getY());
+                setManualFocusAt((int) e.getX(), (int) e.getY());
+                return true;
+            }
+        });
     }
 
     @Override
@@ -549,6 +584,30 @@ public class Camera2Fragment extends Fragment
         closeCamera();
         stopBackgroundThread();
         super.onPause();
+    }
+
+    /**
+     * Focus view animation
+     */
+    private void setFocusViewWidthAnimation(float x, float y) {
+        mFocusView.setVisibility(View.VISIBLE);
+
+        mFocusView.setX(x - mFocusView.getWidth() / 2);
+        mFocusView.setY(y - mFocusView.getHeight() / 2);
+
+        ObjectAnimator scaleX = ObjectAnimator.ofFloat(mFocusView, "scaleX", 1, 0.6f);
+        ObjectAnimator scaleY = ObjectAnimator.ofFloat(mFocusView, "scaleY", 1, 0.6f);
+        ObjectAnimator alpha = ObjectAnimator.ofFloat(mFocusView, "alpha", 1f, 0.3f, 1f, 0.3f, 1f, 0.3f, 1f);
+        AnimatorSet animSet = new AnimatorSet();
+        animSet.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                mFocusView.setVisibility(View.GONE);
+            }
+        });
+        animSet.play(scaleX).with(scaleY).before(alpha);
+        animSet.setDuration(300);
+        animSet.start();
     }
 
     private boolean hasPermissionsGranted(String[] permissions) {
@@ -705,6 +764,8 @@ public class Camera2Fragment extends Fragment
                         mPreviewSize.getHeight(), mPreviewSize.getWidth());
                 }
 
+                mCropRegion = AutoFocusHelper.cropRegionForZoom(mCameraCharacteristics, 1);
+
                 // Check if the flash is supported.
                 Boolean available = mCameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
                 mFlashSupported = available == null ? false : available;
@@ -737,7 +798,7 @@ public class Camera2Fragment extends Fragment
         Activity activity = getActivity();
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
-            if (!mCameraOpenCloseLock.tryAcquire(OPEN_CAMERA_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            if (!mCameraOpenCloseLock.tryAcquire(CameraConstants.OPEN_CAMERA_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 throw new RuntimeException("Time out waiting to lock camera opening.");
             }
             mMediaRecorder = new MediaRecorder();
@@ -790,6 +851,7 @@ public class Camera2Fragment extends Fragment
                 super.handleMessage(msg);
                 switch (msg.what) {
                     case MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT:
+                        mState = STATE_PICTURE_TAKEN;
                         captureStillPicture();
                         break;
                     default:
@@ -941,6 +1003,9 @@ public class Camera2Fragment extends Fragment
                 mAutoFocus = false;
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                     CaptureRequest.CONTROL_AF_MODE_OFF);
+            } else if (mIsRecordingVideo) {
+                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
             } else {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                     CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
@@ -949,13 +1014,81 @@ public class Camera2Fragment extends Fragment
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                 CaptureRequest.CONTROL_AF_MODE_OFF);
         }
+        mAFRegions = AutoFocusHelper.getZeroWeightRegion();
+        mAERegions = AutoFocusHelper.getZeroWeightRegion();
+        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_REGIONS, mAFRegions);
+        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_REGIONS, mAERegions);
+    }
+
+    /**
+     * Updates the internal state of manual focus.
+     */
+    void updateManualFocus(float x, float y) {
+        @SuppressWarnings("ConstantConditions")
+        int sensorOrientation = mCameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+        mAFRegions = AutoFocusHelper.afRegionsForNormalizedCoord(x, y, mCropRegion, sensorOrientation);
+        mAERegions = AutoFocusHelper.aeRegionsForNormalizedCoord(x, y, mCropRegion, sensorOrientation);
+        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_REGIONS, mAFRegions);
+        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_REGIONS, mAERegions);
+        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO);
+    }
+
+    void setManualFocusAt(int x, int y) {
+        int mDisplayOrientation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
+        float points[] = new float[2];
+        points[0] = (float) x / mTextureView.getWidth();
+        points[1] = (float) y / mTextureView.getHeight();
+        Matrix rotationMatrix = new Matrix();
+        rotationMatrix.setRotate(mDisplayOrientation, 0.5f, 0.5f);
+        rotationMatrix.mapPoints(points);
+        if (mPreviewRequestBuilder != null) {
+            mIsManualFocusing = true;
+            updateManualFocus(points[0], points[1]);
+            if (mPreviewSession != null) {
+                try {
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+                        CaptureRequest.CONTROL_AF_TRIGGER_START);
+                    mPreviewSession.capture(mPreviewRequestBuilder.build(), null, mBackgroundHandler);
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
+                        CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
+                    mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
+                        null, mBackgroundHandler);
+                } catch (CameraAccessException e) {
+                    Log.e(TAG, "Failed to set manual focus.", e);
+                }
+            }
+            resumeAutoFocusAfterManualFocus();
+        }
+    }
+
+    private final Runnable mAutoFocusRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mPreviewRequestBuilder != null) {
+                mIsManualFocusing = false;
+                updateAutoFocus();
+                if (mPreviewSession != null) {
+                    try {
+                        mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
+                            mCaptureCallback, mBackgroundHandler);
+                    } catch (CameraAccessException e) {
+                        Log.e(TAG, "Failed to set manual focus.", e);
+                    }
+                }
+            }
+        }
+    };
+
+    private void resumeAutoFocusAfterManualFocus() {
+        mBackgroundHandler.removeCallbacks(mAutoFocusRunnable);
+        mBackgroundHandler.postDelayed(mAutoFocusRunnable, CameraConstants.FOCUS_HOLD_MILLIS);
     }
 
     /**
      * Initiate a still image capture.
      */
     private void takePicture() {
-        if (mAutoFocus) {
+        if (!mIsManualFocusing && mAutoFocus) {
             capturePictureWhenFocusTimeout(); //Sometimes, camera do not focus in some devices.
             lockFocus();
         } else {
@@ -968,7 +1101,8 @@ public class Camera2Fragment extends Fragment
      */
     private void capturePictureWhenFocusTimeout() {
         if (mBackgroundHandler != null) {
-            mBackgroundHandler.sendEmptyMessageDelayed(MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT, AUTO_FOCUS_TIMEOUT_MS);
+            mBackgroundHandler.sendEmptyMessageDelayed(MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT,
+                CameraConstants.AUTO_FOCUS_TIMEOUT_MS);
         }
     }
 

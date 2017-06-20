@@ -1,6 +1,8 @@
 # Camera2Kit
-A android sample use camera2 to take picture and record video in one fragment,
-Fix some issues and optimize code over the google samples.
+A android sample use camera2 to take picture and record video in one fragment.
+
+- Fix some issues and optimize code over the google samples.
+- Add support for manual tap to focus.
 
 
 

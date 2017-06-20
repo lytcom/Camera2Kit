@@ -602,7 +602,7 @@ public class Camera2Fragment extends Fragment
         animSet.addListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                mFocusView.setVisibility(View.GONE);
+                mFocusView.setVisibility(View.INVISIBLE);
             }
         });
         animSet.play(scaleX).with(scaleY).before(alpha);
@@ -764,7 +764,8 @@ public class Camera2Fragment extends Fragment
                         mPreviewSize.getHeight(), mPreviewSize.getWidth());
                 }
 
-                mCropRegion = AutoFocusHelper.cropRegionForZoom(mCameraCharacteristics, 1);
+                mCropRegion = AutoFocusHelper.cropRegionForZoom(mCameraCharacteristics,
+                    CameraConstants.ZOOM_REGION_DEFAULT);
 
                 // Check if the flash is supported.
                 Boolean available = mCameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
@@ -1089,9 +1090,11 @@ public class Camera2Fragment extends Fragment
      */
     private void takePicture() {
         if (!mIsManualFocusing && mAutoFocus) {
+            Log.i(TAG, "takePicture lockFocus");
             capturePictureWhenFocusTimeout(); //Sometimes, camera do not focus in some devices.
             lockFocus();
         } else {
+            Log.i(TAG, "takePicture captureStill");
             captureStillPicture();
         }
     }
@@ -1192,7 +1195,7 @@ public class Camera2Fragment extends Fragment
             // Use the same AE and AF modes as the preview.
 //            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
 //                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-            updateAutoFocus();
+//            updateAutoFocus();
             setAutoFlash(captureBuilder);
 
             // Orientation

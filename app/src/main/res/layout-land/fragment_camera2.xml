@@ -21,7 +21,7 @@
         android:id="@+id/focusView"
         android:layout_width="@dimen/focus_view_size"
         android:layout_height="@dimen/focus_view_size"
-        android:visibility="gone"/>
+        android:visibility="invisible"/>
 
     <LinearLayout
         android:id="@+id/control"

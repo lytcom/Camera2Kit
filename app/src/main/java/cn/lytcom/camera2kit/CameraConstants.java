@@ -11,4 +11,6 @@ public class CameraConstants {
 
     public static final float METERING_REGION_FRACTION = 0.1225f;
 
+    public static final int ZOOM_REGION_DEFAULT = 1;
+
 }

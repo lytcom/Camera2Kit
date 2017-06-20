@@ -5,4 +5,7 @@
     <string name="stop_record_video">Stop record</string>
     <string name="request_permission">This sample needs permission for camera and audio recording.</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+    <string name="flash_auto">Flash auto</string>
+    <string name="flash_off">Flash off</string>
+    <string name="flash_on">Flash on</string>
 </resources>

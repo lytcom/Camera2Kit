@@ -62,6 +62,9 @@ import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.TextureView;
@@ -156,6 +159,25 @@ public class Camera2Fragment extends Fragment
 
     private static final int MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT = 100;
 
+    private static final int[] FLASH_OPTIONS = {
+        CameraConstants.FLASH_AUTO,
+        CameraConstants.FLASH_OFF,
+        CameraConstants.FLASH_ON,
+    };
+
+    private static final int[] FLASH_ICONS = {
+        R.drawable.ic_flash_auto,
+        R.drawable.ic_flash_off,
+        R.drawable.ic_flash_on,
+    };
+
+    private static final int[] FLASH_TITLES = {
+        R.string.flash_auto,
+        R.string.flash_off,
+        R.string.flash_on,
+    };
+
+    private int mCurrentFlashIndex;
 
     private Rect mCropRegion;
 
@@ -228,6 +250,9 @@ public class Camera2Fragment extends Fragment
      * Whether the current camera auto focus when take picture
      */
     private boolean mAutoFocus = true;
+
+
+    private int mFlash = CameraConstants.FLASH_AUTO;
 
     /**
      * Orientation of the camera sensor
@@ -546,6 +571,7 @@ public class Camera2Fragment extends Fragment
 
     @Override
     public void onViewCreated(final View view, Bundle savedInstanceState) {
+        setHasOptionsMenu(true);
         recordButton = (Button) view.findViewById(R.id.video);
         recordButton.setOnClickListener(this);
         pictureButton = (Button) view.findViewById(R.id.picture);
@@ -584,6 +610,24 @@ public class Camera2Fragment extends Fragment
         closeCamera();
         stopBackgroundThread();
         super.onPause();
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        inflater.inflate(R.menu.main, menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.switch_flash:
+                mCurrentFlashIndex = (mCurrentFlashIndex + 1) % FLASH_OPTIONS.length;
+                item.setTitle(FLASH_TITLES[mCurrentFlashIndex]);
+                item.setIcon(FLASH_ICONS[mCurrentFlashIndex]);
+                setFlash(FLASH_OPTIONS[mCurrentFlashIndex]);
+                return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     /**
@@ -914,7 +958,7 @@ public class Camera2Fragment extends Fragment
 //                                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
                             updateAutoFocus();
                             // Flash is automatically enabled when necessary.
-                            setAutoFlash(mPreviewRequestBuilder);
+                            updateFlash(mPreviewRequestBuilder);
 
                             // Finally, we start displaying the camera preview.
                             mPreviewRequest = mPreviewRequestBuilder.build();
@@ -967,6 +1011,71 @@ public class Camera2Fragment extends Fragment
             matrix.postRotate(180, centerX, centerY);
         }
         mTextureView.setTransform(matrix);
+    }
+
+
+    public void setFlash(int flash) {
+        if (mFlash == flash) {
+            return;
+        }
+        int saved = mFlash;
+        mFlash = flash;
+        if (mPreviewRequestBuilder != null) {
+            updateFlash(mPreviewRequestBuilder);
+            if (mPreviewSession != null) {
+                try {
+                    mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
+                        mCaptureCallback, mBackgroundHandler);
+                } catch (CameraAccessException e) {
+                    mFlash = saved; // Revert
+                }
+            }
+        }
+    }
+
+    public int getFlash() {
+        return mFlash;
+    }
+
+    /**
+     * Updates the internal state of flash to {@link #mFlash}.
+     */
+    void updateFlash(CaptureRequest.Builder requestBuilder) {
+        if (!mFlashSupported) {
+            return;
+        }
+        switch (mFlash) {
+            case CameraConstants.FLASH_OFF:
+                requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON);
+                requestBuilder.set(CaptureRequest.FLASH_MODE,
+                    CaptureRequest.FLASH_MODE_OFF);
+                break;
+            case CameraConstants.FLASH_ON:
+                requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
+                requestBuilder.set(CaptureRequest.FLASH_MODE,
+                    CaptureRequest.FLASH_MODE_OFF);
+                break;
+            case CameraConstants.FLASH_TORCH:
+                requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON);
+                requestBuilder.set(CaptureRequest.FLASH_MODE,
+                    CaptureRequest.FLASH_MODE_TORCH);
+                break;
+            case CameraConstants.FLASH_AUTO:
+                requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+                requestBuilder.set(CaptureRequest.FLASH_MODE,
+                    CaptureRequest.FLASH_MODE_OFF);
+                break;
+            case CameraConstants.FLASH_RED_EYE:
+                requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH_REDEYE);
+                requestBuilder.set(CaptureRequest.FLASH_MODE,
+                    CaptureRequest.FLASH_MODE_OFF);
+                break;
+        }
     }
 
     public void setAutoFocus(boolean autoFocus) {
@@ -1147,7 +1256,7 @@ public class Camera2Fragment extends Fragment
                 mBackgroundHandler);
 
             updateAutoFocus();
-            setAutoFlash(mPreviewRequestBuilder);
+            updateFlash(mPreviewRequestBuilder);
             // After this, the camera will go back to the normal state of preview.
             mState = STATE_PREVIEW;
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
@@ -1196,7 +1305,7 @@ public class Camera2Fragment extends Fragment
 //            captureBuilder.set(CaptureRequest.CONTROL_AF_MODE,
 //                CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
 //            updateAutoFocus();
-            setAutoFlash(captureBuilder);
+            updateFlash(captureBuilder);
 
             // Orientation
             int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
@@ -1251,13 +1360,6 @@ public class Camera2Fragment extends Fragment
                 }
                 break;
             }
-        }
-    }
-
-    private void setAutoFlash(CaptureRequest.Builder requestBuilder) {
-        if (mFlashSupported) {
-            requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
-                CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
         }
     }
 
@@ -1338,7 +1440,7 @@ public class Camera2Fragment extends Fragment
                         mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                             CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
                         // Flash is automatically enabled when necessary.
-                        setAutoFlash(mPreviewRequestBuilder);
+                        updateFlash(mPreviewRequestBuilder);
 
                         // Finally, we start displaying the camera preview.
                         mPreviewRequest = mPreviewRequestBuilder.build();

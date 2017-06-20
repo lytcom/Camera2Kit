@@ -13,4 +13,10 @@ public class CameraConstants {
 
     public static final int ZOOM_REGION_DEFAULT = 1;
 
+    public static final int FLASH_OFF = 0;
+    public static final int FLASH_ON = 1;
+    public static final int FLASH_TORCH = 2;
+    public static final int FLASH_AUTO = 3;
+    public static final int FLASH_RED_EYE = 4;
+
 }

@@ -1402,6 +1402,15 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                         // Flash is automatically enabled when necessary.
                         updateFlash(mPreviewRequestBuilder);
 
+                        // For test
+                        Integer stabilizationMode = mPreviewRequestBuilder.
+                            get(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE);
+                        if (stabilizationMode != null &&
+                            stabilizationMode == CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF) {
+                            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                                CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON);
+                        }
+
                         // Finally, we start displaying the camera preview.
                         mPreviewRequest = mPreviewRequestBuilder.build();
                         mPreviewSession.setRepeatingRequest(mPreviewRequest, null, mBackgroundHandler);

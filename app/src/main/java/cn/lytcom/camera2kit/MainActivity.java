@@ -99,7 +99,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             menu.findItem(R.id.switch_flash).setVisible(false);
         } else {
             menu.findItem(R.id.switch_camera).setVisible(true);
-            menu.findItem(R.id.switch_flash).setVisible(true);
+            menu.findItem(R.id.switch_flash)
+                .setTitle(FLASH_TITLES[mCurrentFlashIndex])
+                .setIcon(FLASH_ICONS[mCurrentFlashIndex])
+                .setVisible(true);
         }
         return super.onPrepareOptionsMenu(menu);
     }

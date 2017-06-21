@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <cn.lytcom.camera2kit.AutoFitTextureView
         android:id="@+id/texture"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"/>
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
 
     <cn.lytcom.camera2kit.PreviewOverlay
         android:id="@+id/preview_overlay"
@@ -23,32 +20,4 @@
         android:layout_height="@dimen/focus_view_size"
         android:visibility="invisible"/>
 
-    <LinearLayout
-        android:id="@+id/control"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"
-        android:background="@color/colorPrimary"
-        android:gravity="center_horizontal"
-        android:padding="10dp">
-
-        <Button
-            android:id="@+id/picture"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="@string/take_picture"
-            android:textAllCaps="false"/>
-
-        <Button
-            android:id="@+id/video"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="@string/start_record_video"
-            android:textAllCaps="false"/>
-
-    </LinearLayout>
-
-</RelativeLayout>
+</FrameLayout>

@@ -62,15 +62,11 @@ import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.Toast;
 
 import java.io.File;
@@ -85,8 +81,7 @@ import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-public class Camera2Fragment extends Fragment
-    implements View.OnClickListener, FragmentCompat.OnRequestPermissionsResultCallback {
+public class Camera2Fragment extends Fragment implements FragmentCompat.OnRequestPermissionsResultCallback {
 
     private static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
     private static final int SENSOR_ORIENTATION_INVERSE_DEGREES = 270;
@@ -95,6 +90,7 @@ public class Camera2Fragment extends Fragment
     private static final SparseIntArray INVERSE_ORIENTATIONS = new SparseIntArray();
 
     private static final int REQUEST_CAMERA_PERMISSION = 1;
+
     private static final String FRAGMENT_DIALOG = "dialog";
 
     private static final String[] VIDEO_PERMISSIONS = {
@@ -159,26 +155,6 @@ public class Camera2Fragment extends Fragment
 
     private static final int MSG_CAPTURE_PICTURE_WHEN_FOCUS_TIMEOUT = 100;
 
-    private static final int[] FLASH_OPTIONS = {
-        CameraConstants.FLASH_AUTO,
-        CameraConstants.FLASH_OFF,
-        CameraConstants.FLASH_ON,
-    };
-
-    private static final int[] FLASH_ICONS = {
-        R.drawable.ic_flash_auto,
-        R.drawable.ic_flash_off,
-        R.drawable.ic_flash_on,
-    };
-
-    private static final int[] FLASH_TITLES = {
-        R.string.flash_auto,
-        R.string.flash_off,
-        R.string.flash_on,
-    };
-
-    private int mCurrentFlashIndex;
-
     private Rect mCropRegion;
 
     private MeteringRectangle[] mAFRegions = AutoFocusHelper.getZeroWeightRegion();
@@ -193,17 +169,17 @@ public class Camera2Fragment extends Fragment
     /**
      * An {@link AutoFitTextureView} for camera preview.
      */
-    private AutoFitTextureView mTextureView;
+    public AutoFitTextureView mTextureView;
 
     /**
      * The preview for manual tap to focus
      */
-    private PreviewOverlay mPreviewOverlay;
+    public PreviewOverlay mPreviewOverlay;
 
     /**
      * The view for manual tap to focus
      */
-    private FocusView mFocusView;
+    public FocusView mFocusView;
 
     /**
      * A {@link CameraCaptureSession } for camera preview.
@@ -308,16 +284,6 @@ public class Camera2Fragment extends Fragment
      * The output file path of take picture.
      */
     private String mNextPictureAbsolutePath;
-
-    /**
-     * The button of record video
-     */
-    private Button recordButton;
-
-    /**
-     * The button of take picture
-     */
-    private Button pictureButton;
 
 
     /**
@@ -571,11 +537,6 @@ public class Camera2Fragment extends Fragment
 
     @Override
     public void onViewCreated(final View view, Bundle savedInstanceState) {
-        setHasOptionsMenu(true);
-        recordButton = (Button) view.findViewById(R.id.video);
-        recordButton.setOnClickListener(this);
-        pictureButton = (Button) view.findViewById(R.id.picture);
-        pictureButton.setOnClickListener(this);
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
         mFocusView = (FocusView) view.findViewById(R.id.focusView);
         mPreviewOverlay = (PreviewOverlay) view.findViewById(R.id.preview_overlay);
@@ -610,24 +571,6 @@ public class Camera2Fragment extends Fragment
         closeCamera();
         stopBackgroundThread();
         super.onPause();
-    }
-
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        inflater.inflate(R.menu.main, menu);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.switch_flash:
-                mCurrentFlashIndex = (mCurrentFlashIndex + 1) % FLASH_OPTIONS.length;
-                item.setTitle(FLASH_TITLES[mCurrentFlashIndex]);
-                item.setIcon(FLASH_ICONS[mCurrentFlashIndex]);
-                setFlash(FLASH_OPTIONS[mCurrentFlashIndex]);
-                return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 
     /**
@@ -1103,7 +1046,7 @@ public class Camera2Fragment extends Fragment
     /**
      * Updates the internal state of auto-focus to {@link #mAutoFocus}.
      */
-    private void updateAutoFocus() {
+    void updateAutoFocus() {
         if (mAutoFocus) {
             int[] modes = mCameraCharacteristics.get(
                 CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
@@ -1197,7 +1140,7 @@ public class Camera2Fragment extends Fragment
     /**
      * Initiate a still image capture.
      */
-    private void takePicture() {
+    public void takePicture() {
         if (!mIsManualFocusing && mAutoFocus) {
             Log.i(TAG, "takePicture lockFocus");
             capturePictureWhenFocusTimeout(); //Sometimes, camera do not focus in some devices.
@@ -1343,26 +1286,6 @@ public class Camera2Fragment extends Fragment
         return (DEFAULT_ORIENTATIONS.get(rotation) + mSensorOrientation + 270) % 360;
     }
 
-    @Override
-    public void onClick(View view) {
-        switch (view.getId()) {
-            case R.id.picture: {
-                takePicture();
-                break;
-            }
-            case R.id.video: {
-                if (mIsRecordingVideo) {
-                    stopRecordingVideo();
-                    pictureButton.setEnabled(true);
-                } else {
-                    pictureButton.setEnabled(false);
-                    startRecordingVideo();
-                }
-                break;
-            }
-        }
-    }
-
     private String getVideoFilePath(Context context) {
         final File dir = context.getExternalFilesDir(null);
         return (dir == null ? "" : (dir.getAbsolutePath() + "/"))
@@ -1406,7 +1329,7 @@ public class Camera2Fragment extends Fragment
     /**
      * Start recording video
      */
-    private void startRecordingVideo() {
+    public void startRecordingVideo() {
         if (null == mCameraDevice || !mTextureView.isAvailable() || null == mPreviewSize) {
             return;
         }
@@ -1451,8 +1374,6 @@ public class Camera2Fragment extends Fragment
                                 // UI
                                 mIsRecordingVideo = true;
 
-                                recordButton.setText(R.string.stop_record_video);
-
                                 // Start recording
                                 mMediaRecorder.start();
                             }
@@ -1476,14 +1397,12 @@ public class Camera2Fragment extends Fragment
     /**
      * Stop recording video
      */
-    private void stopRecordingVideo() {
+    public void stopRecordingVideo() {
         getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 // UI
                 mIsRecordingVideo = false;
-
-                recordButton.setText(R.string.start_record_video);
 
                 showToast("Video saved: " + mNextVideoAbsolutePath);
                 Log.i(TAG, "Video saved: " + mNextVideoAbsolutePath);
@@ -1492,6 +1411,10 @@ public class Camera2Fragment extends Fragment
                 openCamera(mTextureView.getWidth(), mTextureView.getHeight());
             }
         });
+    }
+
+    public boolean isRecordingVideo() {
+        return mIsRecordingVideo;
     }
 
 

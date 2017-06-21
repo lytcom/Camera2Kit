@@ -37,12 +37,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     /**
      * The button of record video
      */
-    private Button recordButton;
+    private Button mRecordButton;
 
     /**
      * The button of take picture
      */
-    private Button pictureButton;
+    private Button mPictureButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,10 +61,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mCamera2Fragment = (Camera2Fragment) getFragmentManager().findFragmentById(R.id.container);
         }
 
-        recordButton = (Button) findViewById(R.id.video);
-        recordButton.setOnClickListener(this);
-        pictureButton = (Button) findViewById(R.id.picture);
-        pictureButton.setOnClickListener(this);
+        mRecordButton = (Button) findViewById(R.id.video);
+        mRecordButton.setOnClickListener(this);
+        mPictureButton = (Button) findViewById(R.id.picture);
+        mPictureButton.setOnClickListener(this);
     }
 
 
@@ -83,8 +83,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 item.setIcon(FLASH_ICONS[mCurrentFlashIndex]);
                 mCamera2Fragment.setFlash(FLASH_OPTIONS[mCurrentFlashIndex]);
                 return true;
+            case R.id.switch_camera:
+                int facing = mCamera2Fragment.getFacing();
+                mCamera2Fragment.setFacing(facing == CameraConstants.FACING_FRONT ?
+                    CameraConstants.FACING_BACK : CameraConstants.FACING_FRONT);
+                return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        if (mCamera2Fragment.isRecordingVideo()) {
+            menu.findItem(R.id.switch_camera).setVisible(false);
+            menu.findItem(R.id.switch_flash).setVisible(false);
+        } else {
+            menu.findItem(R.id.switch_camera).setVisible(true);
+            menu.findItem(R.id.switch_flash).setVisible(true);
+        }
+        return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
@@ -97,13 +114,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.video: {
                 if (mCamera2Fragment.isRecordingVideo()) {
                     mCamera2Fragment.stopRecordingVideo();
-                    recordButton.setText(R.string.start_record_video);
-                    pictureButton.setEnabled(true);
+                    mRecordButton.setText(R.string.start_record_video);
+                    mPictureButton.setEnabled(true);
                 } else {
-                    pictureButton.setEnabled(false);
+                    mPictureButton.setEnabled(false);
                     mCamera2Fragment.startRecordingVideo();
-                    recordButton.setText(R.string.stop_record_video);
+                    mRecordButton.setText(R.string.stop_record_video);
                 }
+                invalidateOptionsMenu();
                 break;
             }
         }

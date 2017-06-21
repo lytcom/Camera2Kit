@@ -89,6 +89,13 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
     private static final SparseIntArray DEFAULT_ORIENTATIONS = new SparseIntArray();
     private static final SparseIntArray INVERSE_ORIENTATIONS = new SparseIntArray();
 
+    private static final SparseIntArray INTERNAL_FACINGS = new SparseIntArray();
+
+    static {
+        INTERNAL_FACINGS.put(CameraConstants.FACING_BACK, CameraCharacteristics.LENS_FACING_BACK);
+        INTERNAL_FACINGS.put(CameraConstants.FACING_FRONT, CameraCharacteristics.LENS_FACING_FRONT);
+    }
+
     private static final int REQUEST_CAMERA_PERMISSION = 1;
 
     private static final String FRAGMENT_DIALOG = "dialog";
@@ -229,6 +236,9 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
 
 
     private int mFlash = CameraConstants.FLASH_AUTO;
+
+
+    private int mFacing = CameraConstants.FACING_BACK;
 
     /**
      * Orientation of the camera sensor
@@ -553,6 +563,16 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
     @Override
     public void onResume() {
         super.onResume();
+        start();
+    }
+
+    @Override
+    public void onPause() {
+        stop();
+        super.onPause();
+    }
+
+    public void start() {
         startBackgroundThread();
 
         // When the screen is turned off and turned back on, the SurfaceTexture is already
@@ -566,11 +586,9 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
         }
     }
 
-    @Override
-    public void onPause() {
+    public void stop() {
         closeCamera();
         stopBackgroundThread();
-        super.onPause();
     }
 
     /**
@@ -660,15 +678,15 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
      */
     private void setupCameraOutputs(int width, int height) {
         Activity activity = getActivity();
+        int internalFacing = INTERNAL_FACINGS.get(mFacing);
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
             for (String cameraId : manager.getCameraIdList()) {
                 mCameraCharacteristics
                     = manager.getCameraCharacteristics(cameraId);
 
-                // We don't use a front facing camera in this sample.
                 Integer facing = mCameraCharacteristics.get(CameraCharacteristics.LENS_FACING);
-                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                if (facing == null || facing != internalFacing) {
                     continue;
                 }
 
@@ -956,6 +974,24 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
         mTextureView.setTransform(matrix);
     }
 
+    public boolean isCameraOpened() {
+        return mCameraDevice != null;
+    }
+
+    public void setFacing(int facing) {
+        if (mFacing == facing) {
+            return;
+        }
+        mFacing = facing;
+        if (isCameraOpened()) {
+            stop();
+            start();
+        }
+    }
+
+    public int getFacing() {
+        return mFacing;
+    }
 
     public void setFlash(int flash) {
         if (mFlash == flash) {
@@ -1334,6 +1370,7 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
             return;
         }
         try {
+            mIsRecordingVideo = true;
             setupMediaRecorder();
             SurfaceTexture texture = mTextureView.getSurfaceTexture();
             assert texture != null;
@@ -1371,9 +1408,6 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                         getActivity().runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                // UI
-                                mIsRecordingVideo = true;
-
                                 // Start recording
                                 mMediaRecorder.start();
                             }

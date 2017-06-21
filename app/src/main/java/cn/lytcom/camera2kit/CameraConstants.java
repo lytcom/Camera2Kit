@@ -19,4 +19,7 @@ public class CameraConstants {
     public static final int FLASH_AUTO = 3;
     public static final int FLASH_RED_EYE = 4;
 
+    public static final int FACING_BACK = 0;
+    public static final int FACING_FRONT = 1;
+
 }

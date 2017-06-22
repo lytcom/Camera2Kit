@@ -87,6 +87,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 int facing = mCamera2Fragment.getFacing();
                 mCamera2Fragment.setFacing(facing == CameraConstants.FACING_FRONT ?
                     CameraConstants.FACING_BACK : CameraConstants.FACING_FRONT);
+
+                invalidateOptionsMenu();
                 return true;
         }
         return super.onOptionsItemSelected(item);
@@ -98,11 +100,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             menu.findItem(R.id.switch_camera).setVisible(false);
             menu.findItem(R.id.switch_flash).setVisible(false);
         } else {
-            menu.findItem(R.id.switch_camera).setVisible(true);
+            menu.findItem(R.id.switch_camera)
+                .setVisible(mCamera2Fragment.isFacingSupported());
             menu.findItem(R.id.switch_flash)
                 .setTitle(FLASH_TITLES[mCurrentFlashIndex])
                 .setIcon(FLASH_ICONS[mCurrentFlashIndex])
-                .setVisible(true);
+                .setVisible(mCamera2Fragment.isFlashSupported());
         }
         return super.onPrepareOptionsMenu(menu);
     }

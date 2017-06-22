@@ -225,20 +225,34 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
     /**
-     * Whether the current camera device supports Flash or not.
-     */
-    private boolean mFlashSupported;
-
-    /**
-     * Whether the current camera auto focus when take picture
+     * The current camera auto focus mode
      */
     private boolean mAutoFocus = true;
 
+    /**
+     * Whether the current camera device supports auto focus or not.
+     */
+    private boolean mAutoFocusSupported = true;
 
+    /**
+     * The current camera flash mode
+     */
     private int mFlash = CameraConstants.FLASH_AUTO;
 
+    /**
+     * Whether the current camera device supports flash or not.
+     */
+    private boolean mFlashSupported = true;
 
+    /**
+     * The current camera facing mode
+     */
     private int mFacing = CameraConstants.FACING_BACK;
+
+    /**
+     * Whether the current camera device can switch back/front or not.
+     */
+    private boolean mFacingSupported = true;
 
     /**
      * Orientation of the camera sensor
@@ -681,7 +695,9 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
         int internalFacing = INTERNAL_FACINGS.get(mFacing);
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
-            for (String cameraId : manager.getCameraIdList()) {
+            String[] cameraIds = manager.getCameraIdList();
+            mFacingSupported = cameraIds.length > 1;
+            for (String cameraId : cameraIds) {
                 mCameraCharacteristics
                     = manager.getCameraCharacteristics(cameraId);
 
@@ -769,12 +785,11 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                         mPreviewSize.getHeight(), mPreviewSize.getWidth());
                 }
 
+                checkAutoFocusSupported();
+                checkFlashSupported();
+
                 mCropRegion = AutoFocusHelper.cropRegionForZoom(mCameraCharacteristics,
                     CameraConstants.ZOOM_REGION_DEFAULT);
-
-                // Check if the flash is supported.
-                Boolean available = mCameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-                mFlashSupported = available == null ? false : available;
 
                 mCameraId = cameraId;
                 Log.i(TAG, "CameraId: " + mCameraId + " ,isFlashSupported: " + mFlashSupported);
@@ -788,6 +803,23 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
             ErrorDialog.newInstance(getString(R.string.camera_error))
                 .show(getChildFragmentManager(), FRAGMENT_DIALOG);
         }
+    }
+
+    /**
+     * Check if the auto focus is supported.
+     */
+    private void checkAutoFocusSupported() {
+        int[] modes = mCameraCharacteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
+        mAutoFocusSupported = !(modes == null || modes.length == 0 ||
+            (modes.length == 1 && modes[0] == CameraCharacteristics.CONTROL_AF_MODE_OFF));
+    }
+
+    /**
+     * Check if the flash is supported.
+     */
+    private void checkFlashSupported() {
+        Boolean available = mCameraCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+        mFlashSupported = available == null ? false : available;
     }
 
     /**
@@ -993,6 +1025,13 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
         return mFacing;
     }
 
+    /**
+     * The facing is supported or not.
+     */
+    public boolean isFacingSupported() {
+        return mFacingSupported;
+    }
+
     public void setFlash(int flash) {
         if (mFlash == flash) {
             return;
@@ -1057,6 +1096,13 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
         }
     }
 
+    /**
+     * The flash is supported or not.
+     */
+    public boolean isFlashSupported() {
+        return mFlashSupported;
+    }
+
     public void setAutoFocus(boolean autoFocus) {
         if (mAutoFocus == autoFocus) {
             return;
@@ -1080,24 +1126,28 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
     }
 
     /**
+     * The auto focus is supported or not.
+     */
+    public boolean isAutoFocusSupported() {
+        return mAutoFocusSupported;
+    }
+
+    /**
      * Updates the internal state of auto-focus to {@link #mAutoFocus}.
      */
     void updateAutoFocus() {
         if (mAutoFocus) {
-            int[] modes = mCameraCharacteristics.get(
-                CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
-            // Auto focus is not supported
-            if (modes == null || modes.length == 0 ||
-                (modes.length == 1 && modes[0] == CameraCharacteristics.CONTROL_AF_MODE_OFF)) {
-                mAutoFocus = false;
+            if (!mAutoFocusSupported) {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                     CaptureRequest.CONTROL_AF_MODE_OFF);
-            } else if (mIsRecordingVideo) {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
             } else {
-                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                if (mIsRecordingVideo) {
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+                } else {
+                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                }
             }
         } else {
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
@@ -1177,7 +1227,7 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
      * Initiate a still image capture.
      */
     public void takePicture() {
-        if (!mIsManualFocusing && mAutoFocus) {
+        if (!mIsManualFocusing && mAutoFocus && mAutoFocusSupported) {
             Log.i(TAG, "takePicture lockFocus");
             capturePictureWhenFocusTimeout(); //Sometimes, camera do not focus in some devices.
             lockFocus();
@@ -1397,8 +1447,9 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                     mPreviewSession = cameraCaptureSession;
                     try {
                         // Auto focus should be continuous for camera preview.
-                        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+//                        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+//                            CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+                        updateAutoFocus();
                         // Flash is automatically enabled when necessary.
                         updateFlash(mPreviewRequestBuilder);
 

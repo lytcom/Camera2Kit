@@ -7,6 +7,12 @@ A android sample use camera2 to take picture and record video in one fragment.
 
 
 
+## Screenshots
+
+<img src="screenshots/main.png" height="400" alt="Screenshot"/> 
+
+
+
 ## Thanks
 
 - [googlesamples  android-Camera2Basic](https://github.com/googlesamples/android-Camera2Basic)

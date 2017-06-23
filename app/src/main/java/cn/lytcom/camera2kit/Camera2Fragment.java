@@ -1044,6 +1044,19 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
         return mAspectRatio;
     }
 
+    public boolean setAspectRatio(AspectRatio aspectRatio) {
+        if (aspectRatio == null || aspectRatio.equals(mAspectRatio) ||
+            !mPreviewSizes.ratios().contains(aspectRatio)) {
+            return false;
+        }
+        mAspectRatio = aspectRatio;
+        if (isCameraOpened()) {
+            stop();
+            start();
+        }
+        return true;
+    }
+
     public boolean isCameraOpened() {
         return mCameraDevice != null;
     }

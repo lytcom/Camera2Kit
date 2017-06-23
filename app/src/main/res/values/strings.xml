@@ -9,4 +9,5 @@
     <string name="flash_off">Flash off</string>
     <string name="flash_on">Flash on</string>
     <string name="switch_camera">Switch camera</string>
+    <string name="aspect_ratio">Aspect ratio</string>
 </resources>

@@ -3,7 +3,7 @@ A android sample use camera2 to take picture and record video in one fragment.
 
 - Fix some issues and optimize code over the google samples.
 - Add support for manual tap to focus.
-- Add control for set flash and switch back/front camera.
+- Add control for aspect ratio and flash, switch back/front camera.
 
 
 
@@ -15,6 +15,7 @@ A android sample use camera2 to take picture and record video in one fragment.
 
 ## Thanks
 
+- [google  cameraview](https://github.com/google/cameraview)
 - [googlesamples  android-Camera2Basic](https://github.com/googlesamples/android-Camera2Basic)
 - [googlesamples  android-Camera2Video](https://github.com/googlesamples/android-Camera2Video)
 

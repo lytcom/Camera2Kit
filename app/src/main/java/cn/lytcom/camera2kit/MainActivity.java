@@ -2,6 +2,8 @@ package cn.lytcom.camera2kit;
 
 import android.graphics.Color;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
@@ -11,8 +13,14 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.Toast;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+import java.util.Set;
+
+public class MainActivity extends AppCompatActivity
+    implements View.OnClickListener, AspectRatioFragment.AspectRatioListener {
+
+    private static final String FRAGMENT_DIALOG = "aspect_dialog";
 
     private static final int[] FLASH_OPTIONS = {
         CameraConstants.FLASH_AUTO,
@@ -91,6 +99,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.aspect_ratio:
+                FragmentManager fragmentManager = getSupportFragmentManager();
+                if (fragmentManager.findFragmentByTag(FRAGMENT_DIALOG) == null) {
+                    final Set<AspectRatio> ratios = mCamera2Fragment.getSupportedAspectRatios();
+                    final AspectRatio currentRatio = mCamera2Fragment.getAspectRatio();
+                    AspectRatioFragment.newInstance(ratios, currentRatio)
+                        .show(fragmentManager, FRAGMENT_DIALOG);
+                }
+                return true;
             case R.id.switch_flash:
                 mCurrentFlashIndex = (mCurrentFlashIndex + 1) % FLASH_OPTIONS.length;
                 item.setTitle(FLASH_TITLES[mCurrentFlashIndex]);
@@ -111,9 +128,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         if (mCamera2Fragment.isRecordingVideo()) {
+            menu.findItem(R.id.aspect_ratio).setVisible(false);
             menu.findItem(R.id.switch_camera).setVisible(false);
             menu.findItem(R.id.switch_flash).setVisible(false);
         } else {
+            menu.findItem(R.id.aspect_ratio).setVisible(true);
             menu.findItem(R.id.switch_camera)
                 .setVisible(mCamera2Fragment.isFacingSupported());
             menu.findItem(R.id.switch_flash)
@@ -145,5 +164,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
             }
         }
+    }
+
+    @Override
+    public void onAspectRatioSelected(@NonNull AspectRatio ratio) {
+        Toast.makeText(this, ratio.toString(), Toast.LENGTH_SHORT).show();
+        mCamera2Fragment.setAspectRatio(ratio);
     }
 }

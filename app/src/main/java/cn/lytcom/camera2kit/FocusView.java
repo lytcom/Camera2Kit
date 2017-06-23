@@ -2,6 +2,7 @@ package cn.lytcom.camera2kit;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.view.View;
@@ -33,7 +34,7 @@ public class FocusView extends View {
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
         mPaint.setDither(true);
-        mPaint.setColor(0xFF00CC00);
+        mPaint.setColor(Color.GREEN);
         mPaint.setStrokeWidth(3);
         mPaint.setStyle(Paint.Style.STROKE);
     }

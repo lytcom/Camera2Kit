@@ -78,6 +78,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -168,6 +170,10 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
 
     private MeteringRectangle[] mAERegions = AutoFocusHelper.getZeroWeightRegion();
 
+    private AspectRatio mAspectRatio = CameraConstants.DEFAULT_ASPECT_RATIO;
+
+    private final SizeMap mPreviewSizes = new SizeMap();
+
     /**
      * ID of the current {@link CameraDevice}.
      */
@@ -177,11 +183,6 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
      * An {@link AutoFitTextureView} for camera preview.
      */
     public AutoFitTextureView mTextureView;
-
-    /**
-     * The preview for manual tap to focus
-     */
-    public PreviewOverlay mPreviewOverlay;
 
     /**
      * The view for manual tap to focus
@@ -484,20 +485,43 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
     }
 
     /**
-     * In this sample, we choose a video size with 3x4 aspect ratio. Also, we don't use sizes
+     * We choose a largest picture size with mAspectRatio
+     */
+    Size choosePictureSize(Size[] choices) {
+        List<Size> pictureSizes = Arrays.asList(choices);
+        Collections.sort(pictureSizes, new CompareSizesByArea());
+        int maxIndex = pictureSizes.size() - 1;
+        for (int i = maxIndex; i >= 0; i--) {
+            if (pictureSizes.get(i).getWidth() == pictureSizes.get(i).getHeight() *
+                mAspectRatio.getX() / mAspectRatio.getY()) {
+                return pictureSizes.get(i);
+            }
+        }
+        return pictureSizes.get(maxIndex);
+    }
+
+    /**
+     * We choose a largest video size with mAspectRatio. Also, we don't use sizes
      * larger than 1080p, since MediaRecorder cannot handle such a high-resolution video.
      *
      * @param choices The list of available sizes
      * @return The video size
      */
-    private static Size chooseVideoSize(Size[] choices) {
-        for (Size size : choices) {
-            if (size.getWidth() == size.getHeight() * 4 / 3 && size.getWidth() <= MAX_PREVIEW_HEIGHT) {
-                return size;
+    Size chooseVideoSize(Size[] choices) {
+        List<Size> videoSizes = Arrays.asList(choices);
+        List<Size> supportedVideoSizes = new ArrayList<>();
+        Collections.sort(videoSizes, new CompareSizesByArea());
+        for (int i = videoSizes.size() - 1; i >= 0; i--) {
+            if (videoSizes.get(i).getWidth() <= MAX_PREVIEW_WIDTH &&
+                videoSizes.get(i).getHeight() <= MAX_PREVIEW_HEIGHT) {
+                supportedVideoSizes.add(videoSizes.get(i));
+                if (videoSizes.get(i).getWidth() == videoSizes.get(i).getHeight() *
+                    mAspectRatio.getX() / mAspectRatio.getY()) {
+                    return videoSizes.get(i);
+                }
             }
         }
-        Log.e(TAG, "Couldn't find any suitable video size");
-        return choices[choices.length - 1];
+        return supportedVideoSizes.size() > 0 ? supportedVideoSizes.get(0) : choices[choices.length - 1];
     }
 
     /**
@@ -513,26 +537,27 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
      * @param textureViewHeight The height of the texture view relative to sensor coordinate
      * @param maxWidth          The maximum width that can be chosen
      * @param maxHeight         The maximum height that can be chosen
-     * @param aspectRatio       The aspect ratio
      * @return The optimal {@code Size}, or an arbitrary one if none were big enough
      */
-    private static Size chooseOptimalSize(Size[] choices, int textureViewWidth,
-                                          int textureViewHeight, int maxWidth, int maxHeight, Size aspectRatio) {
-
+    Size chooseOptimalSize(Size[] choices, int textureViewWidth,
+                           int textureViewHeight, int maxWidth, int maxHeight) {
+        mPreviewSizes.clear();
         // Collect the supported resolutions that are at least as big as the preview Surface
         List<Size> bigEnough = new ArrayList<>();
         // Collect the supported resolutions that are smaller than the preview Surface
         List<Size> notBigEnough = new ArrayList<>();
-        int w = aspectRatio.getWidth();
-        int h = aspectRatio.getHeight();
+        int w = mAspectRatio.getX();
+        int h = mAspectRatio.getY();
         for (Size option : choices) {
-            if (option.getWidth() <= maxWidth && option.getHeight() <= maxHeight &&
-                option.getHeight() == option.getWidth() * h / w) {
-                if (option.getWidth() >= textureViewWidth &&
-                    option.getHeight() >= textureViewHeight) {
-                    bigEnough.add(option);
-                } else {
-                    notBigEnough.add(option);
+            if (option.getWidth() <= maxWidth && option.getHeight() <= maxHeight) {
+                mPreviewSizes.add(new cn.lytcom.camera2kit.Size(option.getWidth(), option.getHeight()));
+                if (option.getHeight() == option.getWidth() * h / w) {
+                    if (option.getWidth() >= textureViewWidth &&
+                        option.getHeight() >= textureViewHeight) {
+                        bigEnough.add(option);
+                    } else {
+                        notBigEnough.add(option);
+                    }
                 }
             }
         }
@@ -545,6 +570,13 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
             return Collections.max(notBigEnough, new CompareSizesByArea());
         } else {
             Log.e(TAG, "Couldn't find any suitable preview size");
+            mAspectRatio = AspectRatio.of(4, 3);
+            SortedSet<cn.lytcom.camera2kit.Size> sortedSet = mPreviewSizes.sizes(mAspectRatio);
+            if (sortedSet != null) {
+                cn.lytcom.camera2kit.Size lastSize = sortedSet.last();
+                return new Size(lastSize.getWidth(), lastSize.getHeight());
+            }
+            mAspectRatio = AspectRatio.of(choices[0].getWidth(), choices[0].getHeight());
             return choices[0];
         }
     }
@@ -563,8 +595,7 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
     public void onViewCreated(final View view, Bundle savedInstanceState) {
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
         mFocusView = (FocusView) view.findViewById(R.id.focusView);
-        mPreviewOverlay = (PreviewOverlay) view.findViewById(R.id.preview_overlay);
-        mPreviewOverlay.setGestureListener(new GestureDetector.SimpleOnGestureListener() {
+        mTextureView.setGestureListener(new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onSingleTapUp(MotionEvent e) {
                 setFocusViewWidthAnimation((int) e.getX(), (int) e.getY());
@@ -712,15 +743,6 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                     continue;
                 }
 
-                // For still image captures, we use the largest available size.
-                Size largest = Collections.max(
-                    Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
-                    new CompareSizesByArea());
-                mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
-                    ImageFormat.JPEG, /*maxImages*/2);
-                mImageReader.setOnImageAvailableListener(
-                    mOnImageAvailableListener, mBackgroundHandler);
-
                 // Find out if we need to swap dimension to get the preview size relative to sensor
                 // coordinate.
                 int displayRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
@@ -745,7 +767,7 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                 }
 
                 Point displaySize = new Point();
-                activity.getWindowManager().getDefaultDisplay().getSize(displaySize);
+                activity.getWindowManager().getDefaultDisplay().getRealSize(displaySize);
                 int rotatedPreviewWidth = width;
                 int rotatedPreviewHeight = height;
                 int maxPreviewWidth = displaySize.x;
@@ -771,9 +793,17 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                 // garbage capture data.
                 mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class),
                     rotatedPreviewWidth, rotatedPreviewHeight, maxPreviewWidth,
-                    maxPreviewHeight, largest);
+                    maxPreviewHeight);
 
                 mVideoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder.class));
+
+                // For still image captures, we use the largest available size.
+                Size largest = choosePictureSize(map.getOutputSizes(ImageFormat.JPEG));
+
+                mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
+                    ImageFormat.JPEG, /*maxImages*/2);
+                mImageReader.setOnImageAvailableListener(
+                    mOnImageAvailableListener, mBackgroundHandler);
 
                 // We fit the aspect ratio of TextureView to the size of preview we picked.
                 int orientation = getResources().getConfiguration().orientation;
@@ -1006,6 +1036,14 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
         mTextureView.setTransform(matrix);
     }
 
+    public Set<AspectRatio> getSupportedAspectRatios() {
+        return mPreviewSizes.ratios();
+    }
+
+    public AspectRatio getAspectRatio() {
+        return mAspectRatio;
+    }
+
     public boolean isCameraOpened() {
         return mCameraDevice != null;
     }
@@ -1192,7 +1230,7 @@ public class Camera2Fragment extends Fragment implements FragmentCompat.OnReques
                         CaptureRequest.CONTROL_AF_TRIGGER_IDLE);
                     mPreviewSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
                         null, mBackgroundHandler);
-                } catch (CameraAccessException e) {
+                } catch (CameraAccessException | IllegalStateException e) {
                     Log.e(TAG, "Failed to set manual focus.", e);
                 }
             }

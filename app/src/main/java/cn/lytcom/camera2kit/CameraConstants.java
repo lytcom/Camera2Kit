@@ -3,6 +3,8 @@ package cn.lytcom.camera2kit;
 
 public class CameraConstants {
 
+    public static final AspectRatio DEFAULT_ASPECT_RATIO = AspectRatio.of(16, 9);
+
     public static final long AUTO_FOCUS_TIMEOUT_MS = 800;  //800ms timeout, Under normal circumstances need to a few hundred milliseconds
 
     public static final long OPEN_CAMERA_TIMEOUT_MS = 2500;  //2.5s

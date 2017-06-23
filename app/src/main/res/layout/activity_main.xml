@@ -15,8 +15,7 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:background="@color/color1"/>
+        android:layout_alignParentTop="true"/>
 
     <LinearLayout
         android:id="@+id/control"
@@ -24,10 +23,8 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_alignParentStart="true"
-        android:background="@color/color1"
-        android:clickable="true"
-        android:gravity="center_horizontal"
-        android:padding="10dp">
+        android:gravity="center"
+        android:paddingBottom="10dp">
 
         <Button
             android:id="@+id/picture"

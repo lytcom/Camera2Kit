@@ -7,7 +7,10 @@ import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -47,6 +50,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setFullScreen();
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         toolbar.setTitleTextColor(Color.WHITE);
@@ -65,8 +69,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mRecordButton.setOnClickListener(this);
         mPictureButton = (Button) findViewById(R.id.picture);
         mPictureButton.setOnClickListener(this);
+
+        int height = getResources().getDisplayMetrics().heightPixels / 4;
+        LinearLayout controlLayout = (LinearLayout) findViewById(R.id.control);
+        RelativeLayout.LayoutParams layoutParams = (RelativeLayout.LayoutParams) controlLayout.getLayoutParams();
+        layoutParams.height = height;
+        controlLayout.setLayoutParams(layoutParams);
     }
 
+    private void setFullScreen() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION |
+            WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

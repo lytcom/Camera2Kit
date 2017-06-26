@@ -9,7 +9,7 @@ A android sample use camera2 to take picture and record video in one fragment.
 
 ## Screenshots
 
-<img src="screenshots/main.png" height="400" alt="Screenshot"/> 
+<img src="screenshots/main.jpg" height="400" alt="Screenshot"/> 
 
 
 
